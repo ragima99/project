@@ -705,8 +705,8 @@ export const generateVehicles = (): Vehicle[] => {
     maxVolume: data.max_weight_ton * 1.2,
     available: true,
     currentLocation: {
-      lat: 40.2756,
-      lng: 49.4449
+      lat: 49.4449,
+      lng: 40.2756
     }
   }));
 };
