@@ -1,15 +1,11 @@
-import React, { createContext, useReducer, useContext, ReactNode } from 'react';
+import React, { createContext, useReducer, useContext, ReactNode, useEffect } from 'react';
 import { AppState, AppAction, Customer, Order, Vehicle, Assignment } from '../types';
 import { generateCustomers, generateOrders, generateVehicles } from '../data/mockData';
 
-const initialCustomers = generateCustomers();
-const initialOrders = generateOrders();
-const initialVehicles = generateVehicles();
-
 const initialState: AppState = {
-  customers: initialCustomers,
-  orders: initialOrders,
-  vehicles: initialVehicles,
+  customers: [],
+  orders: [],
+  vehicles: [],
   assignments: [],
   selectedOrder: null,
   selectedVehicle: null,
@@ -90,6 +86,27 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(appReducer, initialState);
+
+  // Load data from CSV files on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [customers, orders, vehicles] = await Promise.all([
+          generateCustomers(),
+          generateOrders(),
+          generateVehicles()
+        ]);
+
+        dispatch({ type: 'SET_CUSTOMERS', payload: customers });
+        dispatch({ type: 'SET_ORDERS', payload: orders });
+        dispatch({ type: 'SET_VEHICLES', payload: vehicles });
+      } catch (error) {
+        console.error('Error loading data from CSV files:', error);
+      }
+    };
+
+    loadData();
+  }, []);
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>
