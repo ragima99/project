@@ -21,6 +21,60 @@ const calculateDistance = (
   return distance;
 };
 
+// Parse time string (HH:MM) to minutes from midnight
+const parseTimeToMinutes = (timeStr: string): number => {
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return hours * 60 + minutes;
+};
+
+// Convert minutes from midnight to time string (HH:MM)
+const minutesToTimeString = (minutes: number): string => {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+};
+
+// Check if two time ranges overlap
+const timeRangesOverlap = (range1: string, range2: string): boolean => {
+  const [start1Str, end1Str] = range1.split('-');
+  const [start2Str, end2Str] = range2.split('-');
+  
+  const start1 = parseTimeToMinutes(start1Str);
+  let end1 = parseTimeToMinutes(end1Str);
+  const start2 = parseTimeToMinutes(start2Str);
+  let end2 = parseTimeToMinutes(end2Str);
+  
+  // Handle overnight shifts (e.g., 15:00-00:00 means 15:00-24:00)
+  if (end1 === 0) end1 = 24 * 60; // 00:00 means end of day
+  if (end2 === 0) end2 = 24 * 60;
+  
+  return start1 < end2 && start2 < end1;
+};
+
+// Get the overlapping time window between vehicle and customer
+const getOverlappingTimeWindow = (vehicleHours: string, customerHours: string): { start: number; end: number } | null => {
+  const [vStartStr, vEndStr] = vehicleHours.split('-');
+  const [cStartStr, cEndStr] = customerHours.split('-');
+  
+  const vStart = parseTimeToMinutes(vStartStr);
+  let vEnd = parseTimeToMinutes(vEndStr);
+  const cStart = parseTimeToMinutes(cStartStr);
+  let cEnd = parseTimeToMinutes(cEndStr);
+  
+  // Handle overnight shifts
+  if (vEnd === 0) vEnd = 24 * 60;
+  if (cEnd === 0) cEnd = 24 * 60;
+  
+  const overlapStart = Math.max(vStart, cStart);
+  const overlapEnd = Math.min(vEnd, cEnd);
+  
+  if (overlapStart < overlapEnd) {
+    return { start: overlapStart, end: overlapEnd };
+  }
+  
+  return null; // No overlap
+};
+
 // Calculate the center point of a cluster of locations
 const calculateClusterCenter = (locations: { lat: number; lng: number }[]): { lat: number; lng: number } => {
   const sum = locations.reduce(
@@ -115,28 +169,58 @@ const clusterDeliveryLocations = (
   return clusters.map(cluster => cluster.orders).filter(orders => orders.length > 0);
 };
 
-// Optimize route using 2-opt algorithm for TSP
+// Optimize route using 2-opt algorithm for TSP with time constraints
 const optimizeRouteWithTwoOpt = (
-  startLat: number,
-  startLng: number,
+  vehicle: Vehicle,
   orders: Order[],
   customers: Customer[]
 ): {
   orderedIds: string[];
   totalDistance: number;
+  totalWaitingTime: number;
+  canCompleteInWorkingHours: boolean;
 } => {
   if (orders.length === 0) {
-    return { orderedIds: [], totalDistance: 0 };
+    return { 
+      orderedIds: [], 
+      totalDistance: 0, 
+      totalWaitingTime: 0,
+      canCompleteInWorkingHours: true 
+    };
+  }
+
+  // Filter orders that can be delivered within overlapping time windows
+  const validOrders = orders.filter(order => {
+    const customer = customers.find(c => c.id === order.customerId);
+    if (!customer) return false;
+    
+    const overlap = getOverlappingTimeWindow(
+      vehicle.workingHours || '09:00-17:00',
+      customer.acceptanceHours || '09:00-17:00'
+    );
+    
+    return overlap !== null;
+  });
+
+  if (validOrders.length === 0) {
+    return { 
+      orderedIds: [], 
+      totalDistance: 0, 
+      totalWaitingTime: 0,
+      canCompleteInWorkingHours: false 
+    };
   }
 
   // Create initial route
-  const route = [...orders];
+  const route = [...validOrders];
   let improved = true;
   let totalDistance = 0;
+  let totalWaitingTime = 0;
 
   while (improved) {
     improved = false;
-    let bestDistance = calculateTotalRouteDistance(startLat, startLng, route, customers);
+    const routeMetrics = calculateRouteMetrics(vehicle, route, customers);
+    let bestDistance = routeMetrics.totalDistance;
 
     for (let i = 0; i < route.length - 1; i++) {
       for (let j = i + 1; j < route.length; j++) {
@@ -145,51 +229,95 @@ const optimizeRouteWithTwoOpt = (
         const segment = newRoute.slice(i, j + 1).reverse();
         newRoute.splice(i, segment.length, ...segment);
 
-        const newDistance = calculateTotalRouteDistance(startLat, startLng, newRoute, customers);
+        const newMetrics = calculateRouteMetrics(vehicle, newRoute, customers);
 
-        if (newDistance < bestDistance) {
+        if (newMetrics.totalDistance < bestDistance && newMetrics.canCompleteInWorkingHours) {
           route.splice(0, route.length, ...newRoute);
-          bestDistance = newDistance;
+          bestDistance = newMetrics.totalDistance;
+          totalDistance = newMetrics.totalDistance;
+          totalWaitingTime = newMetrics.totalWaitingTime;
           improved = true;
           break;
         }
       }
       if (improved) break;
     }
-    totalDistance = bestDistance;
+    
+    if (!improved) {
+      const finalMetrics = calculateRouteMetrics(vehicle, route, customers);
+      totalDistance = finalMetrics.totalDistance;
+      totalWaitingTime = finalMetrics.totalWaitingTime;
+    }
   }
+
+  const finalMetrics = calculateRouteMetrics(vehicle, route, customers);
 
   return {
     orderedIds: route.map(order => order.id),
-    totalDistance
+    totalDistance,
+    totalWaitingTime,
+    canCompleteInWorkingHours: finalMetrics.canCompleteInWorkingHours
   };
 };
 
-const calculateTotalRouteDistance = (
-  startLat: number,
-  startLng: number,
+const calculateRouteMetrics = (
+  vehicle: Vehicle,
   route: Order[],
   customers: Customer[]
-): number => {
+): {
+  totalDistance: number;
+  totalWaitingTime: number;
+  canCompleteInWorkingHours: boolean;
+} => {
   let totalDistance = 0;
-  let currentLat = startLat;
-  let currentLng = startLng;
-
+  let totalWaitingTime = 0;
+  let currentLat = vehicle.currentLocation.lat;
+  let currentLng = vehicle.currentLocation.lng;
+  
+  // Parse vehicle working hours
+  const [vStartStr, vEndStr] = (vehicle.workingHours || '09:00-17:00').split('-');
+  const workStart = parseTimeToMinutes(vStartStr);
+  let workEnd = parseTimeToMinutes(vEndStr);
+  if (workEnd === 0) workEnd = 24 * 60; // Handle overnight shifts
+  
+  let currentTime = workStart; // Start at beginning of work shift
+  
   route.forEach(order => {
     const customer = customers.find(c => c.id === order.customerId);
     if (customer) {
-      totalDistance += calculateDistance(
+      // Calculate travel distance and time
+      const distance = calculateDistance(
         currentLat,
         currentLng,
         customer.location.lat,
         customer.location.lng
       );
+      
+      totalDistance += distance;
+      
+      // Travel time (assuming 30 km/h average speed)
+      const travelTime = (distance / 30) * 60; // minutes
+      currentTime += travelTime;
+      
+      // Add customer waiting time
+      const waitingTime = customer.waitingTime || 5;
+      totalWaitingTime += waitingTime;
+      currentTime += waitingTime;
+      
+      // Update current position
       currentLat = customer.location.lat;
       currentLng = customer.location.lng;
     }
   });
 
-  return totalDistance;
+  // Check if route can be completed within working hours
+  const canCompleteInWorkingHours = currentTime <= workEnd;
+
+  return {
+    totalDistance,
+    totalWaitingTime,
+    canCompleteInWorkingHours
+  };
 };
 
 // Main optimization function
@@ -215,8 +343,21 @@ export const optimizeDeliveries = (
   const assignments: Assignment[] = [];
   let clusterIndex = 0;
 
-  // Sort vehicles by capacity (descending)
-  const sortedVehicles = [...availableVehicles].sort((a, b) => b.maxWeight - a.maxWeight);
+  // Sort vehicles by capacity (descending) and working hours compatibility
+  const sortedVehicles = [...availableVehicles].sort((a, b) => {
+    // First sort by capacity
+    const capacityDiff = b.maxWeight - a.maxWeight;
+    if (capacityDiff !== 0) return capacityDiff;
+    
+    // Then by working hours duration (longer shifts preferred)
+    const [aStartStr, aEndStr] = (a.workingHours || '09:00-17:00').split('-');
+    const [bStartStr, bEndStr] = (b.workingHours || '09:00-17:00').split('-');
+    
+    const aDuration = parseTimeToMinutes(aEndStr) - parseTimeToMinutes(aStartStr);
+    const bDuration = parseTimeToMinutes(bEndStr) - parseTimeToMinutes(bStartStr);
+    
+    return bDuration - aDuration;
+  });
 
   // Assign clusters to vehicles
   sortedVehicles.forEach(vehicle => {
@@ -227,8 +368,19 @@ export const optimizeDeliveries = (
     let remainingWeight = vehicle.maxWeight;
     let remainingVolume = vehicle.maxVolume;
 
-    // Sort cluster orders by weight/volume ratio for better packing
-    const sortedClusterOrders = [...clusterOrders].sort((a, b) => 
+    // Filter orders that can be delivered within time constraints
+    const timeCompatibleOrders = clusterOrders.filter(order => {
+      const customer = customers.find(c => c.id === order.customerId);
+      if (!customer) return false;
+      
+      return timeRangesOverlap(
+        vehicle.workingHours || '09:00-17:00',
+        customer.acceptanceHours || '09:00-17:00'
+      );
+    });
+
+    // Sort by weight/volume ratio for better packing
+    const sortedClusterOrders = [...timeCompatibleOrders].sort((a, b) => 
       (b.weight / b.volume) - (a.weight / a.volume)
     );
 
@@ -242,28 +394,38 @@ export const optimizeDeliveries = (
     });
 
     if (vehicleOrders.length > 0) {
-      // Optimize the route for this vehicle using 2-opt
-      const { orderedIds, totalDistance } = optimizeRouteWithTwoOpt(
-        vehicle.currentLocation.lat,
-        vehicle.currentLocation.lng,
-        vehicleOrders,
-        customers
-      );
+      // Optimize the route for this vehicle with time constraints
+      const routeResult = optimizeRouteWithTwoOpt(vehicle, vehicleOrders, customers);
 
-      // Estimate time based on distance and number of stops
-      // Assume: 30 km/h average speed + 5 minutes per stop
-      const travelTime = totalDistance / 30 * 60; // convert to minutes
-      const loadingTime = vehicleOrders.length * 5; // 5 minutes per stop
-      const estimatedTime = travelTime + loadingTime;
+      if (routeResult.canCompleteInWorkingHours && routeResult.orderedIds.length > 0) {
+        // Calculate total time including travel, waiting, and loading
+        const travelTime = (routeResult.totalDistance / 30) * 60; // 30 km/h average speed
+        const loadingTime = vehicleOrders.length * 5; // 5 minutes per stop for loading
+        const totalTime = travelTime + routeResult.totalWaitingTime + loadingTime;
 
-      assignments.push({
-        vehicleId: vehicle.id,
-        orderIds: orderedIds,
-        totalWeight: vehicle.maxWeight - remainingWeight,
-        totalVolume: vehicle.maxVolume - remainingVolume,
-        estimatedDistance: totalDistance,
-        estimatedTime: estimatedTime,
-      });
+        // Calculate working time window
+        const [startStr, endStr] = (vehicle.workingHours || '09:00-17:00').split('-');
+        const workStart = parseTimeToMinutes(startStr);
+        let workEnd = parseTimeToMinutes(endStr);
+        if (workEnd === 0) workEnd = 24 * 60;
+
+        const scheduledStartTime = new Date();
+        scheduledStartTime.setHours(Math.floor(workStart / 60), workStart % 60, 0, 0);
+        
+        const scheduledEndTime = new Date(scheduledStartTime.getTime() + totalTime * 60000);
+
+        assignments.push({
+          vehicleId: vehicle.id,
+          orderIds: routeResult.orderedIds,
+          totalWeight: vehicle.maxWeight - remainingWeight,
+          totalVolume: vehicle.maxVolume - remainingVolume,
+          estimatedDistance: routeResult.totalDistance,
+          estimatedTime: totalTime,
+          totalWaitingTime: routeResult.totalWaitingTime,
+          scheduledStartTime: scheduledStartTime.toISOString(),
+          scheduledEndTime: scheduledEndTime.toISOString()
+        });
+      }
     }
 
     clusterIndex++;

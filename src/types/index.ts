@@ -8,6 +8,8 @@ export interface Customer {
     lat: number;
     lng: number;
   };
+  waitingTime?: number; // in minutes
+  acceptanceHours?: string; // e.g., "09:00-17:00"
 }
 
 export interface Order {
@@ -32,6 +34,7 @@ export interface Vehicle {
     lat: number;
     lng: number;
   };
+  workingHours?: string; // e.g., "09:00-17:00"
 }
 
 export interface Assignment {
@@ -41,6 +44,9 @@ export interface Assignment {
   totalVolume: number;
   estimatedDistance: number; // in km
   estimatedTime: number; // in minutes
+  totalWaitingTime: number; // in minutes
+  scheduledStartTime?: string; // ISO string
+  scheduledEndTime?: string; // ISO string
 }
 
 export interface AppState {
