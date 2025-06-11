@@ -91,17 +91,69 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     const loadData = async () => {
       try {
+        console.log('Starting to load CSV data...');
+        
         const [customers, orders, vehicles] = await Promise.all([
           generateCustomers(),
           generateOrders(),
           generateVehicles()
         ]);
 
+        console.log('Loaded data:', {
+          customers: customers.length,
+          orders: orders.length,
+          vehicles: vehicles.length
+        });
+
         dispatch({ type: 'SET_CUSTOMERS', payload: customers });
         dispatch({ type: 'SET_ORDERS', payload: orders });
         dispatch({ type: 'SET_VEHICLES', payload: vehicles });
       } catch (error) {
         console.error('Error loading data from CSV files:', error);
+        
+        // Fallback: create some sample data if CSV loading fails
+        const fallbackCustomers: Customer[] = [
+          {
+            id: 'cust-001',
+            name: 'Sample Customer 1',
+            email: 'customer1@example.com',
+            phone: '(555) 123-4567',
+            address: 'Baku, Azerbaijan',
+            location: { lat: 40.4093, lng: 49.8671 },
+            waitingTime: 10,
+            acceptanceHours: '09:00-17:00'
+          }
+        ];
+        
+        const fallbackOrders: Order[] = [
+          {
+            id: 'order-001',
+            customerId: 'cust-001',
+            items: 'Sample Package',
+            weight: 500, // 0.5 tons in kg
+            volume: 0.4,
+            status: 'pending',
+            createdAt: new Date().toISOString(),
+            deliveryDate: null
+          }
+        ];
+        
+        const fallbackVehicles: Vehicle[] = [
+          {
+            id: 'vehicle-001',
+            name: 'Sample Truck',
+            licensePlate: 'ABC-123',
+            maxWeight: 2700, // 2.7 tons in kg
+            maxVolume: 3.2,
+            available: true,
+            currentLocation: { lat: 40.4093, lng: 49.8671 },
+            workingHours: '09:00-17:00'
+          }
+        ];
+        
+        dispatch({ type: 'SET_CUSTOMERS', payload: fallbackCustomers });
+        dispatch({ type: 'SET_ORDERS', payload: fallbackOrders });
+        dispatch({ type: 'SET_VEHICLES', payload: fallbackVehicles });
       }
     };
 
