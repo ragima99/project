@@ -19,7 +19,7 @@ export const generateCustomers = async (): Promise<Customer[]> => {
 
 export const generateOrders = async (): Promise<Order[]> => {
   try {
-    const csvData = await loadCSVData('orders.csv');
+    const csvData = await loadCSVData('data/orders.csv');
     return transformOrderData(csvData);
   } catch (error) {
     console.error('Error loading order data:', error);
