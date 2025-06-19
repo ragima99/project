@@ -55,8 +55,8 @@ export const transformCustomerData = (csvData: any[]) => {
         phone: row.phone || '(000) 000-0000',
         address: row.address || `Baku, Azerbaijan (${location.lat.toFixed(4)}, ${location.lng.toFixed(4)})`,
         location,
-        waitingTime: parseFloat(row.waiting_time) || Math.floor(Math.random() * 10) + 5, // 5-15 minutes random
-        acceptanceHours: row.acceptance_hours || '09:00-17:00' // Default business hours
+        waitingTime: parseInt(row.waiting_time) || Math.floor(Math.random() * 10) + 5, // Parse waiting time from CSV
+        acceptanceHours: row.acceptance_hours || '09:00-17:00' // Parse acceptance hours from CSV
       };
     });
 };
@@ -94,6 +94,6 @@ export const transformVehicleData = (csvData: any[]) => {
         lat: parseFloat(row.lat) || 40.4093, // Baku coordinates as default
         lng: parseFloat(row.lng) || 49.8671
       },
-      workingHours: row['working hours'] || '09:00-17:00' // Default working hours
+      workingHours: row['working hours'] || '09:00-17:00' // Parse working hours from CSV
     }));
 };
