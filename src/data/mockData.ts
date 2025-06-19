@@ -9,7 +9,7 @@ import {
 // Load data from CSV files
 export const generateCustomers = async (): Promise<Customer[]> => {
   try {
-    const csvData = await loadCSVData('customers.csv');
+    const csvData = await loadCSVData('data/customers.csv'); // <-- update path here
     return transformCustomerData(csvData);
   } catch (error) {
     console.error('Error loading customer data:', error);
@@ -29,7 +29,7 @@ export const generateOrders = async (): Promise<Order[]> => {
 
 export const generateVehicles = async (): Promise<Vehicle[]> => {
   try {
-    const csvData = await loadCSVData('vehicles.csv');
+    const csvData = await loadCSVData('data/vehicles.csv');
     return transformVehicleData(csvData);
   } catch (error) {
     console.error('Error loading vehicle data:', error);
