@@ -26,7 +26,7 @@ export const loadCSVData = async (filename: string): Promise<any[]> => {
     const csvText = await response.text();
     return parseCSV(csvText);
   } catch (error) {
-    console.error(Error loading CSV file ${filename}:, error);
+    console.error(`Error loading CSV file ${filename}:`, error);
     return [];
   }
 };
