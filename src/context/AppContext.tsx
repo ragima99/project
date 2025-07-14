@@ -91,7 +91,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     const loadData = async () => {
       try {
-        console.log('Starting to load CSV data...');
+        console.log('=== CSV DATA LOADING DEBUG ===');
         
         const [customers, orders, vehicles] = await Promise.all([
           generateCustomers(),
@@ -99,17 +99,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           generateVehicles()
         ]);
 
-        console.log('Loaded data:', {
+        console.log('=== LOADED DATA SUMMARY ===', {
           customers: customers.length,
           orders: orders.length,
           vehicles: vehicles.length
         });
+        
+        console.log('Sample customer:', customers[0]);
+        console.log('Sample order:', orders[0]);
+        console.log('Sample vehicle:', vehicles[0]);
 
         dispatch({ type: 'SET_CUSTOMERS', payload: customers });
         dispatch({ type: 'SET_ORDERS', payload: orders });
         dispatch({ type: 'SET_VEHICLES', payload: vehicles });
       } catch (error) {
-        console.error('Error loading data from CSV files:', error);
+        console.error('=== CSV LOADING ERROR ===', error);
         
         // Fallback: create some sample data if CSV loading fails
         const fallbackCustomers: Customer[] = [

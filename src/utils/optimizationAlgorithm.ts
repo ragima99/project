@@ -326,19 +326,29 @@ export const optimizeDeliveries = (
   vehicles: Vehicle[],
   customers: Customer[]
 ): Assignment[] => {
+  console.log('=== OPTIMIZATION ALGORITHM DEBUG ===');
+  console.log('Input orders:', orders.length);
+  console.log('Input vehicles:', vehicles.length);
+  console.log('Input customers:', customers.length);
+  
   // Filter for only pending orders
   const pendingOrders = orders.filter(order => order.status === 'pending');
+  console.log('Pending orders after filter:', pendingOrders.length);
   
   // Filter for only available vehicles
   const availableVehicles = vehicles.filter(vehicle => vehicle.available);
+  console.log('Available vehicles after filter:', availableVehicles.length);
   
   if (pendingOrders.length === 0 || availableVehicles.length === 0) {
+    console.log('Early return: no pending orders or available vehicles');
     return [];
   }
 
   // Cluster orders based on location proximity
   const numClusters = Math.min(availableVehicles.length, Math.ceil(pendingOrders.length / 3));
+  console.log('Number of clusters:', numClusters);
   const orderClusters = clusterDeliveryLocations(pendingOrders, customers, numClusters);
+  console.log('Order clusters:', orderClusters.length, orderClusters);
 
   const assignments: Assignment[] = [];
   let clusterIndex = 0;

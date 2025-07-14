@@ -22,11 +22,18 @@ const Dashboard: React.FC = () => {
   }, 0);
   
   const handleOptimize = () => {
+    console.log('=== PLAN DELIVERIES DEBUG ===');
+    console.log('Pending orders:', pendingOrders.length, pendingOrders);
+    console.log('Available vehicles:', availableVehicles.length, availableVehicles);
+    console.log('Customers:', customers.length, customers);
+    
     setIsOptimizing(true);
     
     // Add a small delay to show loading state
     setTimeout(() => {
+      console.log('Starting optimization...');
       const newAssignments = optimizeDeliveries(orders, vehicles, customers);
+      console.log('Optimization result:', newAssignments);
       
       dispatch({ type: 'SET_ASSIGNMENTS', payload: newAssignments });
       
@@ -46,6 +53,7 @@ const Dashboard: React.FC = () => {
       });
       
       dispatch({ type: 'SET_ORDERS', payload: updatedOrders });
+      console.log('Updated orders:', updatedOrders);
       setIsOptimizing(false);
     }, 1000);
   };
