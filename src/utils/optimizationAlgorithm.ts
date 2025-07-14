@@ -36,8 +36,12 @@ const minutesToTimeString = (minutes: number): string => {
 
 // Check if two time ranges overlap
 const timeRangesOverlap = (range1: string, range2: string): boolean => {
+  if (!range1 || !range2) return true; // Default to compatible if no hours specified
+  
   const [start1Str, end1Str] = range1.split('-');
   const [start2Str, end2Str] = range2.split('-');
+  
+  if (!start1Str || !end1Str || !start2Str || !end2Str) return true;
   
   const start1 = parseTimeToMinutes(start1Str);
   let end1 = parseTimeToMinutes(end1Str);
@@ -48,13 +52,23 @@ const timeRangesOverlap = (range1: string, range2: string): boolean => {
   if (end1 === 0) end1 = 24 * 60; // 00:00 means end of day
   if (end2 === 0) end2 = 24 * 60;
   
+  console.log(`Time overlap check: ${range1} vs ${range2} = ${start1 < end2 && start2 < end1}`);
   return start1 < end2 && start2 < end1;
 };
 
 // Get the overlapping time window between vehicle and customer
 const getOverlappingTimeWindow = (vehicleHours: string, customerHours: string): { start: number; end: number } | null => {
+  if (!vehicleHours || !customerHours) {
+    // Default overlap if hours not specified
+    return { start: 9 * 60, end: 17 * 60 }; // 09:00-17:00
+  }
+  
   const [vStartStr, vEndStr] = vehicleHours.split('-');
   const [cStartStr, cEndStr] = customerHours.split('-');
+  
+  if (!vStartStr || !vEndStr || !cStartStr || !cEndStr) {
+    return { start: 9 * 60, end: 17 * 60 }; // Default fallback
+  }
   
   const vStart = parseTimeToMinutes(vStartStr);
   let vEnd = parseTimeToMinutes(vEndStr);
@@ -67,6 +81,8 @@ const getOverlappingTimeWindow = (vehicleHours: string, customerHours: string): 
   
   const overlapStart = Math.max(vStart, cStart);
   const overlapEnd = Math.min(vEnd, cEnd);
+  
+  console.log(`Time window overlap: Vehicle(${vehicleHours}) + Customer(${customerHours}) = ${overlapStart < overlapEnd ? `${minutesToTimeString(overlapStart)}-${minutesToTimeString(overlapEnd)}` : 'NO OVERLAP'}`);
   
   if (overlapStart < overlapEnd) {
     return { start: overlapStart, end: overlapEnd };

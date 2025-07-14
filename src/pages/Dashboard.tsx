@@ -90,23 +90,54 @@ const Dashboard: React.FC = () => {
 
   // Check for potential scheduling conflicts
   const hasTimeConflicts = () => {
+    console.log('=== CHECKING TIME CONFLICTS ===');
+    console.log('Pending orders:', pendingOrders.length);
+    console.log('Available vehicles:', availableVehicles.length);
+    
     return pendingOrders.some(order => {
       const customer = customers.find(c => c.id === order.customerId);
-      if (!customer) return false;
+      if (!customer) {
+        console.log(`No customer found for order ${order.id} with customer ID ${order.customerId}`);
+        return true; // Consider it a conflict if customer not found
+      }
       
-      return !availableVehicles.some(vehicle => {
+      const hasCompatibleVehicle = availableVehicles.some(vehicle => {
         const vehicleHours = vehicle.workingHours || '09:00-17:00';
         const customerHours = customer.acceptanceHours || '09:00-17:00';
         
-        // Simple overlap check
-        const [vStart] = vehicleHours.split('-');
-        const [vEnd] = vehicleHours.split('-')[1] || '17:00';
-        const [cStart] = customerHours.split('-');
-        const [cEnd] = customerHours.split('-')[1] || '17:00';
+        console.log(`Checking compatibility: Vehicle ${vehicle.name} (${vehicleHours}) vs Customer ${customer.name} (${customerHours})`);
         
-        return vStart < cEnd && cStart < vEnd;
+        // Use the same logic as optimization algorithm
+        const [vStartStr, vEndStr] = vehicleHours.split('-');
+        const [cStartStr, cEndStr] = customerHours.split('-');
+        
+        if (!vStartStr || !vEndStr || !cStartStr || !cEndStr) return true;
+        
+        const vStart = parseTimeToMinutes(vStartStr);
+        let vEnd = parseTimeToMinutes(vEndStr);
+        const cStart = parseTimeToMinutes(cStartStr);
+        let cEnd = parseTimeToMinutes(cEndStr);
+        
+        if (vEnd === 0) vEnd = 24 * 60;
+        if (cEnd === 0) cEnd = 24 * 60;
+        
+        const compatible = vStart < cEnd && cStart < vEnd;
+        console.log(`  → Compatible: ${compatible}`);
+        return compatible;
       });
+      
+      if (!hasCompatibleVehicle) {
+        console.log(`Order ${order.id} has NO compatible vehicles`);
+      }
+      
+      return !hasCompatibleVehicle;
     });
+  };
+  
+  // Helper function for time parsing (same as in optimization algorithm)
+  const parseTimeToMinutes = (timeStr: string): number => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
   };
 
   return (
